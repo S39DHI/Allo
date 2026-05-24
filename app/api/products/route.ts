@@ -1,8 +1,33 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const warehouseId = url.searchParams.get('warehouseId') ?? undefined;
+  const search = url.searchParams.get('search')?.trim();
+
   const products = await prisma.product.findMany({
+    where: {
+      AND: [
+        search
+          ? {
+              name: {
+                contains: search,
+                mode: 'insensitive',
+              },
+            }
+          : {},
+        warehouseId
+          ? {
+              inventories: {
+                some: {
+                  warehouseId,
+                },
+              },
+            }
+          : {},
+      ],
+    },
     include: {
       inventories: {
         include: {

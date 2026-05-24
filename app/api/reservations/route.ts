@@ -8,6 +8,31 @@ interface InventoryRow {
   reservedUnits: number;
 }
 
+export async function GET() {
+  const reservations = await prisma.reservation.findMany({
+    include: {
+      product: true,
+      warehouse: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return NextResponse.json(
+    reservations.map((reservation) => ({
+      id: reservation.id,
+      productId: reservation.productId,
+      productName: reservation.product.name,
+      warehouseId: reservation.warehouseId,
+      warehouseName: reservation.warehouse.name,
+      quantity: reservation.quantity,
+      status: reservation.status,
+      expiresAt: reservation.expiresAt.toISOString(),
+      createdAt: reservation.createdAt.toISOString(),
+      updatedAt: reservation.updatedAt.toISOString(),
+    }))
+  );
+}
+
 export async function POST(request: Request) {
   const body = await request.json();
   const parseResult = reservationCreateSchema.safeParse(body);

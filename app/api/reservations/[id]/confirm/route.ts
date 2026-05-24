@@ -17,9 +17,14 @@ interface InventoryRow {
   reservedUnits: number;
 }
 
-export async function POST(_: Request, context: any) {
-  const { params } = context;
-  const parseResult = reservationIdSchema.safeParse(params);
+export async function POST(request: Request, context: any) {
+  const params = await context.params;
+  const reservationId = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  if (!reservationId) {
+    return NextResponse.json({ error: 'Reservation id is required' }, { status: 400 });
+  }
+
+  const parseResult = reservationIdSchema.safeParse({ id: reservationId });
   if (!parseResult.success) {
     return NextResponse.json({ error: 'Reservation id must be a uuid' }, { status: 400 });
   }
@@ -28,7 +33,7 @@ export async function POST(_: Request, context: any) {
     const updated = await prisma.$transaction(async (tx) => {
       const [reservation] = await tx.$queryRaw<ReservationRow[]>`
         SELECT * FROM "Reservation"
-        WHERE "id" = ${params.id}
+        WHERE "id" = ${reservationId}
         FOR UPDATE
       `;
 
