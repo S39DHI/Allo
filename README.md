@@ -77,10 +77,33 @@ The intended production behavior is:
 - expired reservations are marked `RELEASED`
 - inventory reserved by them is returned to available stock
 
+This implementation uses a scheduled cleanup job to enforce that behavior. The cleanup code is implemented in `lib/cleanup.ts`, and the Vercel cron endpoint at `app/api/jobs/release-expired/route.ts` calls it.
+
+The cleanup endpoint:
+- scans for `PENDING` reservations where `expiresAt < NOW()`
+- decrements `reservedUnits` for the associated inventory
+- updates each reservation status to `RELEASED`
+- runs inside a transaction so stock remains correct
+
+This helper is also reusable for a background worker if you want to move cleanup out of the HTTP cron path.
+
+The product availability read path also performs lazy cleanup of expired pending reservations by only summing reservations where `expiresAt > NOW()` in `app/api/products/route.ts`.
+
 ### Vercel cron job
 
-This repo includes `vercel.json` to run a cron every minute.
-The cron should call `/api/jobs/release-expired` to keep inventory accurate.
+This repo includes `vercel.json` to describe the cleanup schedule. For demo and hobby usage, the cron is configured to run once per day and call `/api/jobs/release-expired`.
+
+> Note: Vercel hobby accounts only support daily cron jobs. The `*/1 * * * *` schedule requires Vercel Pro or higher.
+
+For this demo repo, the cron schedule is intentionally set to once daily so it is compatible with Vercel Hobby. In a higher-tier deployment, you may choose a more frequent schedule if you need near-real-time expiry cleanup.
+
+Other acceptable approaches include:
+- a background worker polling expired reservations and releasing them
+- lazy cleanup on read, where reservation reads and stock calculations ignore expired pending reservations
+
+This repo chooses the scheduled HTTP cleanup approach because it is simple, reliable, and fits Vercel’s serverless execution model.
+
+If you prefer not to rely on Vercel cron, use an external scheduler such as GitHub Actions, cron-job.org, or another hosted scheduler service to call `/api/jobs/release-expired` more often.
 
 Sample `vercel.json`:
 ```json
@@ -89,7 +112,7 @@ Sample `vercel.json`:
   "crons": [
     {
       "path": "/api/jobs/release-expired",
-      "schedule": "*/1 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
