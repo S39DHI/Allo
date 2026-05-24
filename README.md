@@ -2,6 +2,8 @@
 
 A production-ready Next.js 15 App Router application implementing a **concurrent, inventory reservation system** with PostgreSQL, Prisma, Redis, Tailwind CSS, and Zod validation. This system handles real-world ecommerce workflows where multiple customers can reserve limited stock simultaneously.
 
+This README is written to match the Allo Engineering take-home exercise requirements: inventory and reservation modeling, a concurrency-safe API, a frontend with stock visibility and reservation checkout, expiry cleanup, and optional idempotency.
+
 ---
 
 ## 📋 Table of Contents
@@ -12,10 +14,17 @@ A production-ready Next.js 15 App Router application implementing a **concurrent
 4. [Database Schema](#database-schema)
 5. [API Documentation](#api-documentation)
 6. [Frontend UI](#frontend-ui)
-7. [Concurrency & Safety](#concurrency--safety)
+7. [Concurrency and Safety](#concurrency-and-safety)
 8. [Error Handling](#error-handling)
 9. [Local Setup](#local-setup)
-10. [Testing the System](#testing-the-system)
+10. [Production Deployment](#production-deployment)
+11. [Testing the System](#testing-the-system)
+12. [Project Structure](#project-structure)
+13. [Reservation Expiry Mechanism](#reservation-expiry-mechanism)
+14. [Idempotency](#idempotency)
+15. [Trade-offs and Design Decisions](#trade-offs-and-design-decisions)
+16. [Getting Started Quickly](#getting-started-quickly)
+17. [Support and Questions](#support-and-questions)
 
 ---
 
@@ -461,7 +470,7 @@ model Reservation {
 
 ---
 
-## 🔒 Concurrency & Safety
+## 🔒 Concurrency and Safety
 
 ### The Problem: Race Conditions
 
@@ -865,7 +874,25 @@ Allo/
 
 ---
 
-## 🛡️ Production Considerations
+## 🚀 Production Deployment
+
+### Vercel Deployment & Cleanup
+
+This app can be deployed to Vercel with hosted Postgres and Redis. In production, use a scheduled Vercel cron job to call `/api/jobs/release-expired` every minute so expired pending reservations are released back into available stock.
+
+Example `vercel.json` cron configuration:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/jobs/release-expired",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
+```
+
+Then continue with production readiness:
 
 Before deploying to production, implement:
 
@@ -900,7 +927,7 @@ Before deploying to production, implement:
 
 ---
 
-## � Reservation Expiry Mechanism
+## ⏳ Reservation Expiry Mechanism
 
 ### How It Works
 
@@ -1048,7 +1075,7 @@ export async function withIdempotency(
 
 ---
 
-## ⚖️ Trade-offs & Design Decisions
+## ⚖️ Trade-offs and Design Decisions
 
 ### What We Optimized For
 
@@ -1172,7 +1199,7 @@ npm run dev
 
 ---
 
-## 📞 Support & Questions
+## 📞 Support and Questions
 
 For issues:
 1. Check error messages in the response body

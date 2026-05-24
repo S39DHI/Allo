@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "crons": [
+    {
+      "path": "/api/jobs/release-expired",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
