@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   try {
     const reservation = await prisma.$transaction(async (tx) => {
-      const inventory = await tx.$queryRaw<InventoryRow>`
+      const [inventory] = await tx.$queryRaw<InventoryRow[]>`
         SELECT * FROM "Inventory"
         WHERE "productId" = ${productId}
           AND "warehouseId" = ${warehouseId}

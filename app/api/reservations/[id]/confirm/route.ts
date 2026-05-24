@@ -17,7 +17,8 @@ interface InventoryRow {
   reservedUnits: number;
 }
 
-export async function POST(_: Request, { params }: { params: { id: string } }) {
+export async function POST(_: Request, context: any) {
+  const { params } = context;
   const parseResult = reservationIdSchema.safeParse(params);
   if (!parseResult.success) {
     return NextResponse.json({ error: 'Reservation id must be a uuid' }, { status: 400 });

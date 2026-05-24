@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { reservationIdSchema } from '@/lib/validators';
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, context: any) {
+  const { params } = context;
   const parseResult = reservationIdSchema.safeParse(params);
   if (!parseResult.success) {
     return NextResponse.json({ error: 'Reservation id must be a uuid' }, { status: 400 });

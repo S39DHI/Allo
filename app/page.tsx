@@ -22,8 +22,6 @@ export default function HomePage() {
           </div>
         </Card>
         <ReleaseExpiredButton />
-          </div>
-        </Card>
       </div>
     </main>
   );

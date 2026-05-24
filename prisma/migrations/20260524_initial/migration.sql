@@ -1,5 +1,7 @@
 -- Create tables and enums for the inventory reservation system
 
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
 CREATE TYPE "ReservationStatus" AS ENUM ('PENDING', 'CONFIRMED', 'RELEASED');
 
 CREATE TABLE "Product" (

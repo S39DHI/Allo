@@ -24,7 +24,8 @@ const formatCountdown = (seconds: number) => {
   return `${minutes}:${remainder.toString().padStart(2, '0')}`;
 };
 
-export default function ReservationPage({ params }: { params: { id: string } }) {
+export default function ReservationPage(props: any) {
+  const { params } = props;
   const router = useRouter();
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
