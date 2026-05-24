@@ -32,9 +32,26 @@ export default function ProductsClient() {
   const [warehouses, setWarehouses] = useState<WarehouseView[]>([]);
   const [quantityByKey, setQuantityByKey] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedWarehouse, setSelectedWarehouse] = useState('');
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notification]);
+
+  const showError = (message: string) => {
+    setError(message);
+    setNotification({ type: 'error', message });
+  };
+
+  const showSuccess = (message: string) => {
+    setError(null);
+    setNotification({ type: 'success', message });
+  };
 
   const buildQuery = (warehouseId: string, searchValue: string) => {
     const params = new URLSearchParams();
@@ -88,7 +105,7 @@ export default function ProductsClient() {
     setLoading(true);
     setError(null);
     const key = `${productId}-${warehouseId}`;
-    const quantity = Number(quantityByKey[key] ?? 1);
+    const quantity = Math.max(1, Number(quantityByKey[key] ?? '1') || 1);
 
     try {
       const response = await fetch('/api/reservations', {
@@ -99,10 +116,11 @@ export default function ProductsClient() {
 
       const body = await response.json();
       if (!response.ok) {
-        setError(body.error ?? 'Unable to reserve stock');
+        showError(body.error ?? 'Unable to reserve stock');
         return;
       }
 
+      showSuccess('Reservation created successfully. Redirecting to checkout...');
       router.push(`/reservations/${body.id}`);
     } finally {
       setLoading(false);
@@ -189,6 +207,18 @@ export default function ProductsClient() {
 
         {error ? (
           <Card className="border-red-200 bg-red-50 text-red-900">{error}</Card>
+        ) : null}
+
+        {notification ? (
+          <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm rounded-2xl border px-4 py-3 shadow-xl transition duration-300 ease-out bg-white dark:bg-slate-950">
+            <div className={`flex items-start gap-3 ${notification.type === 'error' ? 'text-red-800' : 'text-emerald-800'}`}>
+              <div className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`} />
+              <div>
+                <p className="text-sm font-semibold">{notification.type === 'error' ? 'Error' : 'Success'}</p>
+                <p className="text-sm leading-6 text-slate-700">{notification.message}</p>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         <div className="space-y-4">

@@ -33,8 +33,25 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState<number>(0);
+
+  useEffect(() => {
+    if (!notification) return;
+    const timer = window.setTimeout(() => setNotification(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notification]);
+
+  const showError = (message: string) => {
+    setError(message);
+    setNotification({ type: 'error', message });
+  };
+
+  const showSuccess = (message: string) => {
+    setSuccessMessage(message);
+    setNotification({ type: 'success', message });
+  };
 
   const fetchReservation = async () => {
     setError(null);
@@ -72,10 +89,10 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
       });
       const body = await response.json();
       if (!response.ok) {
-        setError(body.error ?? 'Could not complete action.');
+        showError(body.error ?? 'Could not complete action.');
         return;
       }
-      setSuccessMessage(
+      showSuccess(
         action === 'confirm'
           ? 'Purchase confirmed. Inventory has been updated.'
           : 'Reservation canceled. Inventory was released.'
@@ -115,7 +132,8 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
         ) : null}
 
         {reservation ? (
-          <Card className="space-y-6">
+          <>
+            <Card className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <p className="text-sm text-slate-500">Reservation ID</p>
@@ -176,6 +194,18 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
               </Card>
             ) : null}
           </Card>
+          {notification ? (
+            <div className="fixed bottom-6 right-6 z-50 w-full max-w-sm rounded-2xl border px-4 py-3 shadow-xl transition duration-300 ease-out bg-white">
+              <div className={`flex items-start gap-3 ${notification.type === 'error' ? 'text-red-800' : 'text-emerald-800'}`}>
+                <div className={`mt-0.5 h-2.5 w-2.5 rounded-full ${notification.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`} />
+                <div>
+                  <p className="text-sm font-semibold">{notification.type === 'error' ? 'Error' : 'Success'}</p>
+                  <p className="text-sm leading-6 text-slate-700">{notification.message}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </>
         ) : (
           <Card className="border-slate-200 bg-slate-50">Loading reservation…</Card>
         )}
