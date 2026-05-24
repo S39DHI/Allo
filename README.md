@@ -33,7 +33,7 @@ This project follows the exercise requirements:
   - `POST /api/reservations`
   - `POST /api/reservations/:id/confirm`
   - `POST /api/reservations/:id/release`
-- Concurrency-safe reservation creation using PostgreSQL row locks
+- Concurrency-safe reservation creation using PostgreSQL row locks so simultaneous requests for the last available unit result in one success and one 409 conflict
 - Frontend product listing and reservation checkout pages
 - Visible error handling for 409 and 410 responses
 
@@ -105,7 +105,7 @@ This prevents duplicate reservation or confirmation side effects when a client r
 ## Trade-offs and scope
 
 ### Included
-- Concurrency-safe reservation creation
+- Concurrency-safe reservation creation with one-success/one-409 behavior for simultaneous last-unit requests
 - 409 handling for insufficient stock
 - 410 handling for expired reservations
 - expiry cleanup endpoint for cron execution
