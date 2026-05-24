@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,8 +24,9 @@ const formatCountdown = (seconds: number) => {
   return `${minutes}:${remainder.toString().padStart(2, '0')}`;
 };
 
-export default function ReservationPage(props: any) {
-  const { params } = props;
+export default function ReservationPage() {
+  const params = useParams();
+  const reservationId = params?.id as string | undefined;
   const router = useRouter();
   const [reservation, setReservation] = useState<ReservationDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,8 +34,9 @@ export default function ReservationPage(props: any) {
   const [countdown, setCountdown] = useState<number>(0);
 
   const fetchReservation = async () => {
+    if (!reservationId) return;
     setError(null);
-    const response = await fetch(`/api/reservations/${params.id}`, { cache: 'no-store' });
+    const response = await fetch(`/api/reservations/${reservationId}`, { cache: 'no-store' });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       setError(body.error ?? 'Unable to load reservation');
@@ -56,13 +58,14 @@ export default function ReservationPage(props: any) {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [params.id]);
+  }, [reservationId]);
 
   const handleAction = async (action: 'confirm' | 'release') => {
+    if (!reservationId) return;
     setError(null);
     setIsSubmitting(true);
     try {
-      const response = await fetch(`/api/reservations/${params.id}/${action}`, {
+      const response = await fetch(`/api/reservations/${reservationId}/${action}`, {
         method: 'POST',
       });
       const body = await response.json();
