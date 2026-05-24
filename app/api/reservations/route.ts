@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { reservationCreateSchema } from '@/lib/validators';
+import { withIdempotency } from '@/lib/idempotency';
 
 interface InventoryRow {
   id: string;
@@ -43,53 +44,60 @@ export async function POST(request: Request) {
 
   const { productId, warehouseId, quantity } = parseResult.data;
 
-  try {
-    const reservation = await prisma.$transaction(async (tx) => {
-      const [inventory] = await tx.$queryRaw<InventoryRow[]>`
-        UPDATE "Inventory"
-        SET "reservedUnits" = "reservedUnits" + ${quantity}
-        WHERE "productId" = ${productId}
-          AND "warehouseId" = ${warehouseId}
-          AND ("totalUnits" - "reservedUnits") >= ${quantity}
-        RETURNING *
-      `;
-
-      if (!inventory) {
-        const [existing] = await tx.$queryRaw<Pick<InventoryRow, 'id'>[]>`
-          SELECT "id" FROM "Inventory"
+  return withIdempotency(request, 'POST:/api/reservations', async () => {
+    try {
+      const reservation = await prisma.$transaction(async (tx) => {
+        const [inventory] = await tx.$queryRaw<InventoryRow[]>`
+          SELECT * FROM "Inventory"
           WHERE "productId" = ${productId}
             AND "warehouseId" = ${warehouseId}
+          FOR UPDATE
         `;
 
-        if (!existing) {
+        if (!inventory) {
           throw new Error('inventory:not-found');
         }
 
-        throw new Error('inventory:insufficient');
-      }
+        const [reservedRow] = await tx.$queryRaw<{ reserved: string }[]>`
+          SELECT COALESCE(SUM("quantity")::text, '0') AS "reserved"
+          FROM "Reservation"
+          WHERE "productId" = ${productId}
+            AND "warehouseId" = ${warehouseId}
+            AND status = 'PENDING'
+            AND "expiresAt" > NOW()
+        `;
 
-      const reservation = await tx.reservation.create({
-        data: {
-          productId,
-          warehouseId,
-          quantity,
-          expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        },
+        const currentReserved = Number(reservedRow?.reserved ?? '0');
+        if (inventory.totalUnits - currentReserved < quantity) {
+          throw new Error('inventory:insufficient');
+        }
+
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: { reservedUnits: currentReserved + quantity },
+        });
+
+        return tx.reservation.create({
+          data: {
+            productId,
+            warehouseId,
+            quantity,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+          },
+        });
       });
 
-      return reservation;
-    });
+      return { status: 201, body: reservation };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'inventory:insufficient') {
+        return { status: 409, body: { error: 'Insufficient stock available' } };
+      }
 
-    return NextResponse.json(reservation, { status: 201 });
-  } catch (error) {
-    if (error instanceof Error && error.message === 'inventory:insufficient') {
-      return NextResponse.json({ error: 'Insufficient stock available' }, { status: 409 });
+      if (error instanceof Error && error.message === 'inventory:not-found') {
+        return { status: 404, body: { error: 'Product inventory not found' } };
+      }
+
+      return { status: 500, body: { error: 'Could not create reservation' } };
     }
-
-    if (error instanceof Error && error.message === 'inventory:not-found') {
-      return NextResponse.json({ error: 'Product inventory not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ error: 'Could not create reservation' }, { status: 500 });
-  }
+  });
 }

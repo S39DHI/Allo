@@ -80,12 +80,27 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
     return () => clearInterval(interval);
   }, [reservationId]);
 
+  const [actionIdempotencyKey, setActionIdempotencyKey] = useState<string | null>(null);
+
+  const getActionIdempotencyKey = () => {
+    if (actionIdempotencyKey) return actionIdempotencyKey;
+
+    const key = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setActionIdempotencyKey(key);
+    return key;
+  };
+
   const handleAction = async (action: 'confirm' | 'release') => {
     setError(null);
     setIsSubmitting(true);
+    const idempotencyKey = getActionIdempotencyKey();
+
     try {
       const response = await fetch(`/api/reservations/${reservationId}/${action}`, {
         method: 'POST',
+        headers: {
+          'Idempotency-Key': idempotencyKey,
+        },
       });
       const body = await response.json();
       if (!response.ok) {
@@ -100,6 +115,7 @@ export default function ReservationDetailsClient({ reservationId }: ReservationD
       await fetchReservation();
     } finally {
       setIsSubmitting(false);
+      setActionIdempotencyKey(null);
     }
   };
 

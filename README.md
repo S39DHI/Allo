@@ -58,9 +58,13 @@ npm run dev
 
 Expired `PENDING` reservations are released by the `POST /api/jobs/release-expired` cron endpoint. In production, run this endpoint on a scheduled Vercel cron job or a background worker every minute.
 
+## Idempotency
+
+The `POST /api/reservations` and `POST /api/reservations/:id/confirm` endpoints support idempotent retries when the client includes an `Idempotency-Key` header. Responses are cached in Redis so retrying with the same key returns the original result without repeating the side effect.
+
 ## Trade-offs and notes
 
-- The core reservation flow is made race-condition safe using `SELECT FOR UPDATE` in a single PostgreSQL transaction.
+- The core reservation flow is made race-condition safe using `SELECT FOR UPDATE` in PostgreSQL transactions.
 - A simple cron/cleanup endpoint is used instead of a dedicated queue worker for expiry.
 - The frontend is intentionally lightweight and uses client-side fetch state for immediate updates.
-- Idempotency is not implemented in this iteration, but could be added with a request key table or Redis cache.
+- Redis is used for idempotency state; if Redis is unavailable, requests still work normally but retries are not deduplicated.

@@ -101,16 +101,30 @@ export default function ProductsClient() {
     fetchWarehouses();
   }, []);
 
+  const [reserveIdempotencyKeys, setReserveIdempotencyKeys] = useState<Record<string, string>>({});
+
+  const getReserveIdempotencyKey = (key: string) => {
+    if (reserveIdempotencyKeys[key]) return reserveIdempotencyKeys[key];
+
+    const newKey = crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    setReserveIdempotencyKeys((current) => ({ ...current, [key]: newKey }));
+    return newKey;
+  };
+
   const reserve = async (productId: string, warehouseId: string) => {
     setLoading(true);
     setError(null);
     const key = `${productId}-${warehouseId}`;
     const quantity = Math.max(1, Number(quantityByKey[key] ?? '1') || 1);
+    const idempotencyKey = getReserveIdempotencyKey(key);
 
     try {
       const response = await fetch('/api/reservations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify({ productId, warehouseId, quantity }),
       });
 
@@ -124,6 +138,11 @@ export default function ProductsClient() {
       router.push(`/reservations/${body.id}`);
     } finally {
       setLoading(false);
+      setReserveIdempotencyKeys((current) => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
     }
   };
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { reservationIdSchema } from '@/lib/validators';
+import { withIdempotency } from '@/lib/idempotency';
 
 interface ReservationRow {
   id: string;
@@ -8,6 +9,7 @@ interface ReservationRow {
   warehouseId: string;
   quantity: number;
   status: string;
+  expiresAt: Date;
 }
 
 interface InventoryRow {
@@ -26,54 +28,68 @@ export async function POST(request: Request, context: any) {
     return NextResponse.json({ error: 'Reservation id must be a uuid' }, { status: 400 });
   }
 
-  try {
-    const updated = await prisma.$transaction(async (tx) => {
-      const [reservation] = await tx.$queryRaw<ReservationRow[]>`
-        SELECT * FROM "Reservation"
-        WHERE "id" = ${reservationId}
-        FOR UPDATE
-      `;
+  return withIdempotency(request, `POST:/api/reservations/${reservationId}/release`, async () => {
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const [reservation] = await tx.$queryRaw<ReservationRow[]>`
+          SELECT * FROM "Reservation"
+          WHERE "id" = ${reservationId}
+          FOR UPDATE
+        `;
 
-      if (!reservation) {
-        throw new Error('reservation:not-found');
-      }
+        if (!reservation) {
+          throw new Error('reservation:not-found');
+        }
 
-      if (reservation.status !== 'PENDING') {
-        throw new Error('reservation:invalid-status');
-      }
+        if (reservation.status !== 'PENDING') {
+          throw new Error('reservation:invalid-status');
+        }
 
-      const [inventory] = await tx.$queryRaw<InventoryRow[]>`
-        SELECT * FROM "Inventory"
-        WHERE "productId" = ${reservation.productId}
-          AND "warehouseId" = ${reservation.warehouseId}
-        FOR UPDATE
-      `;
+        const [inventory] = await tx.$queryRaw<InventoryRow[]>`
+          SELECT * FROM "Inventory"
+          WHERE "productId" = ${reservation.productId}
+            AND "warehouseId" = ${reservation.warehouseId}
+          FOR UPDATE
+        `;
 
-      if (!inventory) {
-        throw new Error('inventory:not-found');
-      }
+        if (!inventory) {
+          throw new Error('inventory:not-found');
+        }
 
-      await tx.inventory.update({
-        where: { id: inventory.id },
-        data: { reservedUnits: { decrement: reservation.quantity } },
+        const [reservedRow] = await tx.$queryRaw<{ reserved: string }[]>`
+          SELECT COALESCE(SUM("quantity")::text, '0') AS "reserved"
+          FROM "Reservation"
+          WHERE "productId" = ${reservation.productId}
+            AND "warehouseId" = ${reservation.warehouseId}
+            AND status = 'PENDING'
+            AND "expiresAt" > NOW()
+            AND "id" != ${reservation.id}
+        `;
+
+        const currentReserved = Number(reservedRow?.reserved ?? '0');
+
+        await tx.inventory.update({
+          where: { id: inventory.id },
+          data: { reservedUnits: currentReserved },
+        });
+
+        const released = await tx.reservation.update({
+          where: { id: reservation.id },
+          data: { status: 'RELEASED' },
+        });
+
+        return released;
       });
 
-      const released = await tx.reservation.update({
-        where: { id: reservation.id },
-        data: { status: 'RELEASED' },
-      });
-
-      return released;
-    });
-
-    return NextResponse.json(updated);
-  } catch (error) {
-    if (error instanceof Error && error.message === 'reservation:not-found') {
-      return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
+      return { status: 200, body: updated };
+    } catch (error) {
+      if (error instanceof Error && error.message === 'reservation:not-found') {
+        return { status: 404, body: { error: 'Reservation not found' } };
+      }
+      if (error instanceof Error && error.message === 'reservation:invalid-status') {
+        return { status: 400, body: { error: 'Reservation cannot be released' } };
+      }
+      return { status: 500, body: { error: 'Unable to release reservation' } };
     }
-    if (error instanceof Error && error.message === 'reservation:invalid-status') {
-      return NextResponse.json({ error: 'Reservation cannot be released' }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'Unable to release reservation' }, { status: 500 });
-  }
+  });
 }

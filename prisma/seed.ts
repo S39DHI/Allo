@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ReservationStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -43,6 +43,60 @@ async function main() {
   ];
 
   await prisma.inventory.createMany({ data: inventoryData });
+
+  const reservations = [
+    {
+      productId: productList[0].id,
+      warehouseId: dallas.id,
+      quantity: 2,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    },
+    {
+      productId: productList[1].id,
+      warehouseId: dallas.id,
+      quantity: 1,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 7 * 60 * 1000),
+    },
+    {
+      productId: productList[1].id,
+      warehouseId: chicago.id,
+      quantity: 3,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 8 * 60 * 1000),
+    },
+    {
+      productId: productList[2].id,
+      warehouseId: seattle.id,
+      quantity: 5,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 9 * 60 * 1000),
+    },
+    {
+      productId: productList[3].id,
+      warehouseId: seattle.id,
+      quantity: 4,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 6 * 60 * 1000),
+    },
+    {
+      productId: productList[4].id,
+      warehouseId: dallas.id,
+      quantity: 5,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+    },
+    {
+      productId: productList[4].id,
+      warehouseId: chicago.id,
+      quantity: 2,
+      status: ReservationStatus.PENDING,
+      expiresAt: new Date(Date.now() + 4 * 60 * 1000),
+    },
+  ];
+
+  await prisma.reservation.createMany({ data: reservations });
 
   console.log('Seed completed successfully');
 }
