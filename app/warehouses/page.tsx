@@ -64,7 +64,7 @@ export default function WarehousesPage() {
                   <p className="text-sm text-slate-500 break-all">{warehouse.id}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Badge variant="secondary">Warehouse</Badge>
+                  <Badge variant="default">Warehouse</Badge>
                   <span className="text-sm text-slate-500">View products</span>
                 </div>
               </Card>

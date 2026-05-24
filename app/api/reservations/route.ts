@@ -46,18 +46,25 @@ export async function POST(request: Request) {
   try {
     const reservation = await prisma.$transaction(async (tx) => {
       const [inventory] = await tx.$queryRaw<InventoryRow[]>`
-        SELECT * FROM "Inventory"
+        UPDATE "Inventory"
+        SET "reservedUnits" = "reservedUnits" + ${quantity}
         WHERE "productId" = ${productId}
           AND "warehouseId" = ${warehouseId}
-        FOR UPDATE
+          AND ("totalUnits" - "reservedUnits") >= ${quantity}
+        RETURNING *
       `;
 
       if (!inventory) {
-        throw new Error('inventory:not-found');
-      }
+        const [existing] = await tx.$queryRaw<Pick<InventoryRow, 'id'>[]>`
+          SELECT "id" FROM "Inventory"
+          WHERE "productId" = ${productId}
+            AND "warehouseId" = ${warehouseId}
+        `;
 
-      const availableUnits = inventory.totalUnits - inventory.reservedUnits;
-      if (availableUnits < quantity) {
+        if (!existing) {
+          throw new Error('inventory:not-found');
+        }
+
         throw new Error('inventory:insufficient');
       }
 
@@ -68,11 +75,6 @@ export async function POST(request: Request) {
           quantity,
           expiresAt: new Date(Date.now() + 10 * 60 * 1000),
         },
-      });
-
-      await tx.inventory.update({
-        where: { id: inventory.id },
-        data: { reservedUnits: { increment: quantity } },
       });
 
       return reservation;
